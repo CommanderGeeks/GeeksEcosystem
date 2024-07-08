@@ -1,0 +1,58 @@
+//SPDX-License-Identifier: MIT  
+
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract TokenClaim is Ownable{
+    mapping(address => uint256) public claimableTokens;
+    mapping(address => bool) public hasClaimed;
+
+    IERC20 public ShieldToken;
+
+    constructor(address _ShieldToken) {
+        ShieldToken = IERC20(_ShieldToken);
+    }
+
+    // Function to provide the contract with an array of addresses and an array of token amounts
+    function provideTokens(address[] memory _addresses, uint256[] memory _amounts) external onlyOwner {
+        require(_addresses.length == _amounts.length, "Arrays length mismatch");
+
+        for (uint256 i = 0; i < _addresses.length; i++) {
+            require(!hasClaimed[_addresses[i]], "Address has already claimed tokens");
+            claimableTokens[_addresses[i]] += _amounts[i];
+        }
+    }
+
+    // Function for users to claim their tokens
+    function claimTokens() external {
+        require(claimableTokens[msg.sender] > 0, "No tokens to claim");
+        require(!hasClaimed[msg.sender], "Tokens already claimed");
+
+        uint256 amountToClaim = claimableTokens[msg.sender];
+        require(ShieldToken.transfer(msg.sender, amountToClaim), "Couldn't Transfer Tokens");
+        claimableTokens[msg.sender] = 0;
+        hasClaimed[msg.sender] = true;
+    }
+
+    // Function to view claimable token amounts
+    function viewClaimableAmount() external view returns (uint256) {
+        return claimableTokens[msg.sender];
+    }
+
+    function withdrawETH() public onlyOwner {
+        payable(owner()).transfer(address(this).balance);
+    }
+
+    function withdrawERC20(address _tokenAddress, uint256 _tokenAmount) public virtual onlyOwner {
+        IERC20(_tokenAddress).transfer(msg.sender, _tokenAmount);
+    }
+
+    function changeShieldToken(address _tokenAddress) public onlyOwner {
+        ShieldToken = IERC20(_tokenAddress);
+    }
+
+    receive() external payable {
+    }
+}
